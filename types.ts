@@ -1,4 +1,6 @@
 
+export type TargetLength = 2000 | 4000 | 6000 | 8000 | 10000;
+
 export interface Article {
   id: string;
   trend: string;
@@ -7,8 +9,12 @@ export interface Article {
   thumbnailUrl: string;
   sectionImages: SectionImage[];
   createdAt: string;
-  status: 'draft' | 'published';
+  scheduledAt?: string;
+  status: 'draft' | 'scheduled' | 'published';
+  publishedTo?: string[]; // ['note', 'patreon'] など
   references?: string[];
+  targetLength: TargetLength;
+  youtubeUrls?: string[];
 }
 
 export interface SectionImage {

@@ -9,46 +9,47 @@ interface ArticleListProps {
 
 const ArticleList: React.FC<ArticleListProps> = ({ articles, onSelect }) => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {articles.map((article) => (
         <article
           key={article.id}
           onClick={() => onSelect(article)}
-          className="group cursor-pointer bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-gray-100 flex flex-col h-full"
+          className="group cursor-pointer bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-2xl transition-all border border-gray-100 flex flex-col h-full hover:-translate-y-2 duration-300"
         >
-          <div className="relative aspect-video overflow-hidden bg-gray-100">
-            {article.thumbnailUrl ? (
-              <img 
-                src={article.thumbnailUrl} 
-                alt={article.title} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
-                <i className="fa-solid fa-image text-3xl"></i>
-              </div>
-            )}
-            <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-gray-700 uppercase tracking-wider">
-              {article.status === 'published' ? '投稿済' : '下書き'}
+          <div className="relative aspect-video overflow-hidden">
+            <img 
+              src={article.thumbnailUrl} 
+              alt={article.title} 
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+            />
+            <div className="absolute top-4 right-4">
+              <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl ${
+                article.status === 'scheduled' ? 'bg-black text-white' : 'bg-white text-black'
+              }`}>
+                {article.status === 'scheduled' ? '予約中' : '投稿済'}
+              </span>
             </div>
           </div>
           
-          <div className="p-5 flex-grow">
-            <h4 className="font-bold text-gray-900 line-clamp-2 mb-2 group-hover:text-green-600 transition-colors">
+          <div className="p-8 flex-grow">
+            <h4 className="text-xl font-black text-gray-900 line-clamp-2 mb-3 leading-snug group-hover:text-black transition-colors">
               {article.title}
             </h4>
-            <p className="text-xs text-gray-500 line-clamp-3 mb-4">
+            <p className="text-sm text-gray-400 line-clamp-2 font-medium">
               {article.trend}
             </p>
           </div>
           
-          <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
-            <span className="text-[10px] text-gray-400 font-medium">
-              {new Date(article.createdAt).toLocaleDateString('ja-JP')}
-            </span>
-            <span className="text-green-600 text-xs font-bold flex items-center gap-1">
-              全文を読む <i className="fa-solid fa-chevron-right text-[10px]"></i>
-            </span>
+          <div className="px-8 py-6 border-t border-gray-50 flex items-center justify-between bg-gray-50/50">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">作成日</span>
+              <span className="text-xs font-black text-gray-600">
+                {new Date(article.createdAt).toLocaleDateString('ja-JP')}
+              </span>
+            </div>
+            <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">
+              <i className="fa-solid fa-arrow-right text-xs"></i>
+            </div>
           </div>
         </article>
       ))}

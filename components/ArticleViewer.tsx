@@ -1,147 +1,219 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Article } from '../types';
+import { gemini } from '../geminiService';
 
 interface ArticleViewerProps {
   article: Article;
   onBack: () => void;
+  onDelete: () => void;
+  onUpdate: (article: Article) => void;
 }
 
-const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack }) => {
-  const copyToClipboard = () => {
-    const text = `# ${article.title}\n\n${article.content}`;
-    navigator.clipboard.writeText(text);
-    alert('記事全文をMarkdown形式でコピーしました。note.comに貼り付けてください。');
-  };
+const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete, onUpdate }) => {
+  const [isTranslating, setIsTranslating] = useState(false);
 
-  const downloadThumbnail = () => {
+  const downloadImage = (url: string, filename: string) => {
     const link = document.createElement('a');
-    link.href = article.thumbnailUrl;
-    link.download = `thumbnail-${article.id}.png`;
+    link.href = url;
+    link.download = filename;
     link.click();
   };
 
+  const copyToClipboard = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    alert(`${label}をコピーしました！`);
+  };
+
+  const cleanContentForEditor = (content: string, lang: 'ja' | 'en' = 'ja') => {
+    let text = content
+      .replace(/\[REAL_IMAGE:.*?\]/g, '\n(Image here)\n')
+      .replace(/\[YouTubeリンク: .*?\]/g, (match) => {
+        const url = match.match(/\[YouTubeリンク: (.*?)\]/)?.[1];
+        return url ? `\n${url}\n` : '';
+      });
+    return text.trim();
+  };
+
+  const handlePatreonPublish = async () => {
+    setIsTranslating(true);
+    try {
+      const engTitle = await gemini.translateToEnglish(article.title);
+      const engContent = await gemini.translateToEnglish(article.content);
+      
+      downloadImage(article.thumbnailUrl, 'patreon_cover.png');
+      await copyToClipboard(engTitle, 'English Title');
+      
+      setTimeout(async () => {
+        if (confirm('Next: Copy English Body Text?')) {
+          await copyToClipboard(cleanContentForEditor(engContent, 'en'), 'English Body');
+          window.open('https://www.patreon.com/posts/new', '_blank');
+        }
+      }, 500);
+    } catch (e) {
+      alert('Translation failed.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const getYouTubeEmbedId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Tool bar */}
-      <div className="flex items-center justify-between mb-8">
-        <button 
-          onClick={onBack}
-          className="text-gray-500 hover:text-gray-900 flex items-center gap-2 font-medium"
-        >
-          <i className="fa-solid fa-arrow-left"></i> 一覧に戻る
-        </button>
-        <div className="flex gap-3">
+    <div className="max-w-6xl mx-auto pb-24 animate-fade-in">
+      {/* 投稿アシスタントパネル */}
+      <div className="bg-black text-white p-8 rounded-[3rem] mb-12 shadow-2xl flex flex-wrap items-center justify-between gap-8 border-4 border-green-500/20">
+        <div className="flex-grow">
+          <h3 className="text-xl font-black mb-2 flex items-center gap-2">
+            <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+            パブリッシング・アシスタント
+          </h3>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+            {isTranslating ? '英語翻訳中... お待ちください' : '各ボタンを順にクリックしてください'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-4">
           <button 
-            onClick={downloadThumbnail}
-            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-bold hover:bg-gray-200 transition-all flex items-center gap-2"
+            disabled={isTranslating}
+            onClick={() => {
+              downloadImage(article.thumbnailUrl, 'note_thumbnail.png');
+              copyToClipboard(article.title, 'タイトル');
+              window.open('https://note.com/notes/new', '_blank');
+            }}
+            className="bg-green-600 hover:bg-green-500 px-6 py-4 rounded-2xl font-black text-xs transition-all shadow-lg disabled:opacity-50"
           >
-            <i className="fa-solid fa-download"></i> サムネ保存
+            1. note投稿画面へ
           </button>
           <button 
-            onClick={copyToClipboard}
-            className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition-all flex items-center gap-2 shadow-lg shadow-green-100"
+            disabled={isTranslating}
+            onClick={handlePatreonPublish}
+            className="bg-[#ff424d] hover:bg-[#ff5a64] px-6 py-4 rounded-2xl font-black text-xs transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
           >
-            <i className="fa-solid fa-copy"></i> 全文コピー
+            {isTranslating ? <i className="fa-solid fa-spinner animate-spin"></i> : <i className="fa-solid fa-language"></i>}
+            1. Patreonへ (英語翻訳)
+          </button>
+          <button 
+            disabled={isTranslating}
+            onClick={() => copyToClipboard(cleanContentForEditor(article.content), '本文')}
+            className="bg-white text-black hover:bg-gray-100 px-6 py-4 rounded-2xl font-black text-xs transition-all shadow-lg disabled:opacity-50"
+          >
+            2. 本文をコピー
           </button>
         </div>
       </div>
 
-      {/* Article Content */}
-      <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
-        {/* Main Header Image */}
-        <div className="w-full aspect-video relative">
-          {article.thumbnailUrl ? (
-            <img 
-              src={article.thumbnailUrl} 
-              alt="Thumbnail" 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-              No Image Generated
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="lg:col-span-8">
+          <div className="bg-white rounded-[4rem] overflow-hidden shadow-sm border border-gray-100">
+            {/* サムネイル（純粋に画像のみ。文字被りなし） */}
+            <div className="relative group aspect-video bg-gray-100">
+              <img src={article.thumbnailUrl} className="w-full h-full object-cover" alt="Article Thumbnail" />
+              <button 
+                onClick={() => downloadImage(article.thumbnailUrl, 'thumbnail.png')}
+                className="absolute bottom-6 right-6 bg-black text-white px-6 py-3 rounded-2xl font-black text-[10px] opacity-0 group-hover:opacity-100 transition-all hover:bg-green-600"
+              >
+                <i className="fa-solid fa-download mr-2"></i>保存
+              </button>
             </div>
-          )}
-        </div>
 
-        <div className="p-8 md:p-12 lg:p-16">
-          <div className="mb-10 text-center">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 mb-6 leading-tight">
-              {article.title}
-            </h1>
-            <div className="flex items-center justify-center gap-4 text-sm text-gray-400">
-              <span className="flex items-center gap-1">
-                <i className="fa-regular fa-calendar"></i> {new Date(article.createdAt).toLocaleDateString('ja-JP')}
-              </span>
-              <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-              <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-medium">
-                AI 深掘り記事
-              </span>
-            </div>
-          </div>
+            <div className="p-12 md:p-20">
+              {/* タイトルを画像の下に配置 */}
+              <h1 className="text-5xl md:text-7xl font-black text-gray-900 mb-16 leading-tight tracking-tighter">
+                {article.title}
+              </h1>
 
-          <div className="prose prose-lg max-w-none text-gray-800 leading-relaxed space-y-8">
-            {article.content.split('\n').map((para, idx) => {
-              // Simple Markdown rendering logic
-              if (para.startsWith('## ')) {
-                return <h2 key={idx} className="text-2xl font-bold text-gray-900 border-b-2 border-green-500 pb-2 mt-12 mb-6">{para.replace('## ', '')}</h2>;
-              }
-              if (para.startsWith('### ')) {
-                return <h3 key={idx} className="text-xl font-bold text-gray-900 mt-8 mb-4">{para.replace('### ', '')}</h3>;
-              }
-              if (para.startsWith('- ')) {
-                return <li key={idx} className="ml-4 list-disc text-gray-700 mb-2">{para.replace('- ', '')}</li>;
-              }
-              if (para.includes('[YouTube引用:')) {
-                const query = para.match(/\[YouTube引用: (.*?)\]/)?.[1] || 'video';
-                return (
-                  <div key={idx} className="bg-red-50 border border-red-100 rounded-xl p-6 my-8 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1 block">YouTube Suggestion</span>
-                      <p className="text-gray-900 font-bold">ここに「{query}」に関する動画を埋め込んでください</p>
-                    </div>
-                    <i className="fa-brands fa-youtube text-4xl text-red-600"></i>
-                  </div>
-                );
-              }
-              
-              // Handle section images if any
-              const sectionImg = article.sectionImages.find(img => {
-                // Approximate section matching
-                return idx > 0 && para.includes('## '); 
-              });
+              <div className="prose prose-2xl max-w-none prose-headings:font-black prose-p:text-gray-600 prose-p:leading-relaxed prose-strong:text-black">
+                {article.content.split('\n').map((para, idx) => {
+                  if (para.startsWith('## ')) {
+                    return (
+                      <h2 key={idx} className="text-4xl font-black mt-24 mb-10 flex items-center gap-6">
+                        <span className="w-3 h-12 bg-green-500 rounded-full"></span>
+                        {para.replace('## ', '')}
+                      </h2>
+                    );
+                  }
+                  
+                  if (para.includes('[REAL_IMAGE:')) {
+                    const imgId = para.match(/\[REAL_IMAGE:(.*?)\]/)?.[1];
+                    const targetImg = article.sectionImages.find(i => i.id === imgId);
+                    if (targetImg) {
+                      return (
+                        <figure key={idx} className="my-20 group relative">
+                          <img src={targetImg.url} className="rounded-[3rem] shadow-2xl w-full border border-gray-100" />
+                          <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => downloadImage(targetImg.url, `img_${idx}.png`)}
+                              className="bg-white text-black px-5 py-3 rounded-2xl font-black text-[10px] shadow-2xl hover:bg-green-500 hover:text-white"
+                            >
+                              <i className="fa-solid fa-download mr-2"></i>保存
+                            </button>
+                          </div>
+                        </figure>
+                      );
+                    }
+                  }
 
-              if (para.trim() === '') return <br key={idx} />;
-              
-              return <p key={idx} className="whitespace-pre-wrap">{para}</p>;
-            })}
-          </div>
+                  if (para.includes('[YouTubeリンク:')) {
+                    const url = para.match(/\[YouTubeリンク: (.*?)\]/)?.[1];
+                    const embedId = url ? getYouTubeEmbedId(url) : null;
+                    if (!url) return null;
+                    return (
+                      <div key={idx} className="my-20">
+                        {embedId ? (
+                          <div className="rounded-[3rem] overflow-hidden shadow-2xl aspect-video border-4 border-black">
+                            <iframe 
+                              width="100%" 
+                              height="100%" 
+                              src={`https://www.youtube.com/embed/${embedId}`} 
+                              frameBorder="0" 
+                              allowFullScreen
+                            ></iframe>
+                          </div>
+                        ) : (
+                          <a href={url} target="_blank" className="p-10 bg-red-50 rounded-[3rem] block text-center">
+                            <i className="fa-brands fa-youtube text-5xl text-red-600 mb-2"></i>
+                            <p className="font-black">{url}</p>
+                          </a>
+                        )}
+                      </div>
+                    );
+                  }
 
-          {/* Section Images Gallery (displayed separately at bottom or interleaved if complex enough) */}
-          {article.sectionImages.length > 0 && (
-            <div className="mt-16 pt-16 border-t border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 mb-6">生成された挿絵ライブラリ</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {article.sectionImages.map(img => (
-                  <div key={img.id} className="space-y-2">
-                    <img src={img.url} className="w-full rounded-xl shadow-md" alt={img.description} />
-                    <p className="text-xs text-gray-400 italic text-center">"{img.description}" の解説用画像</p>
-                  </div>
-                ))}
+                  if (para.trim() === '') return null;
+                  return <p key={idx} className="mb-8">{para}</p>;
+                })}
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
-      
-      <div className="mt-12 mb-20 text-center">
-        <p className="text-gray-400 text-sm mb-6">この記事の内容が気に入りましたか？</p>
-        <button 
-          onClick={copyToClipboard}
-          className="bg-green-600 text-white px-10 py-4 rounded-full font-bold shadow-xl shadow-green-100 hover:scale-105 transition-all"
-        >
-          note.comにコピーして投稿する
-        </button>
+
+        <div className="lg:col-span-4">
+          <div className="sticky top-32 space-y-8">
+             <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm">
+               <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-8">Status</h4>
+               <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                   <span className="text-sm font-bold">文字数</span>
+                   <span className="font-black">{article.content.length}</span>
+                 </div>
+                 <div className="flex items-center justify-between">
+                   <span className="text-sm font-bold">挿絵</span>
+                   <span className="font-black">{article.sectionImages.length}</span>
+                 </div>
+               </div>
+               <button 
+                onClick={onDelete}
+                className="w-full mt-10 py-5 bg-red-50 text-red-500 rounded-2xl font-black text-xs hover:bg-red-500 hover:text-white transition-all"
+               >
+                 削除
+               </button>
+             </div>
+          </div>
+        </div>
       </div>
     </div>
   );
