@@ -1,0 +1,8 @@
+{
+  "name": "Note Master AI",
+  "description": "A high-end article generator for note.com. From a single trend sentence, it generates deep-dive articles (up to 10k characters), high-quality thumbnails with text using Gemini 3 Pro Image, and contextual in-article images. It includes web searching for facts, YouTube citations, and history management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
