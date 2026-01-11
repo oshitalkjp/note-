@@ -24,13 +24,16 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
     }
   }, [copyStatus]);
 
-  // フォーカスエラーを回避するため、非同期処理を挟まずに実行される関数
   const directCopy = async (text: string, label: string) => {
+    if (!text) {
+      setCopyStatus("コピーする内容がありません。");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopyStatus(`${label}をコピーしました！`);
     } catch (err) {
-      setCopyStatus("コピーに失敗しました。もう一度クリックしてください。");
+      setCopyStatus("コピーに失敗しました。画面をクリックしてから再度試してください。");
     }
   };
 
@@ -53,7 +56,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
 
   const startPatreonPublish = async () => {
     setIsProcessing(true);
-    setCopyStatus("英文とサムネイルを生成中...");
+    setCopyStatus("【超重要】英文とサムネイルを生成中... 閉じずに待ってください。");
     try {
       // 1. 英語タイトル
       const engTitle = await gemini.translateToEnglish(article.title || '');
@@ -65,9 +68,9 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
       setEngData({ title: engTitle, content: engBody, thumb: engThumb });
       setAssistantMode('patreon');
       downloadImage(engThumb, 'patreon_cover.png');
-      setCopyStatus(null);
+      setCopyStatus("英文の準備が整いました！");
     } catch (e: any) {
-      setCopyStatus("エラー: " + e.message);
+      setCopyStatus("生成失敗: " + e.message);
     } finally {
       setIsProcessing(false);
     }
@@ -75,13 +78,11 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
 
   const getFormattedBody = (content: string, isPatreon = false) => {
     let body = content;
-    // 画像タグの置換
     body = body.replace(/\[REAL_IMAGE:(.*?)\]/g, (match, id) => {
       const idx = article.sectionImages?.findIndex(i => i.id === id);
       const label = isPatreon ? "Insert Image" : "画像をアップロード";
       return `\n\n【${label}: ${idx !== undefined ? idx + 1 : 0}枚目】\n\n`;
     });
-    // YouTubeリンクの置換
     body = body.replace(/\[YouTubeリンク: (.*?)\]/g, (match, url) => `\n\n${url}\n\n`);
     return body;
   };
@@ -95,10 +96,10 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
           <button onClick={() => setActiveTab('assets')} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all ${activeTab === 'assets' ? 'bg-black text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>URLリスト</button>
         </div>
         <div className="flex gap-3">
-          <button disabled={isProcessing} onClick={startNotePublish} className="bg-[#2cb696] text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg">note投稿</button>
-          <button disabled={isProcessing} onClick={startPatreonPublish} className="bg-[#ff424d] text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg">
+          <button disabled={isProcessing} onClick={startNotePublish} className="bg-[#2cb696] text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg shadow-green-100">note投稿</button>
+          <button disabled={isProcessing} onClick={startPatreonPublish} className="bg-[#ff424d] text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 transition-all shadow-lg shadow-red-100">
             {isProcessing ? <i className="fa-solid fa-sync animate-spin mr-2"></i> : null}
-            Patreon (英文生成)
+            Patreon (英文に変換)
           </button>
         </div>
       </div>
@@ -111,16 +112,16 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
         </div>
       )}
 
-      {/* 投稿アシスタントUI (フォーカスエラー防止用) */}
+      {/* 投稿アシスタントUI */}
       {assistantMode !== 'none' && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
           <div className="bg-white rounded-[3.5rem] w-full max-w-2xl p-12 shadow-2xl relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-full h-2 ${assistantMode === 'note' ? 'bg-[#2cb696]' : 'bg-[#ff424d]'}`}></div>
             <button onClick={() => setAssistantMode('none')} className="absolute top-10 right-10 text-gray-300 hover:text-black"><i className="fa-solid fa-times text-2xl"></i></button>
             
-            <div className="mb-12">
-              <h2 className="text-4xl font-black mb-2">{assistantMode === 'note' ? 'note' : 'Patreon'} 投稿準備完了</h2>
-              <p className="text-gray-400 font-bold">全画像は保存済みです。順番にボタンを押してコピーしてください。</p>
+            <div className="mb-12 text-center">
+              <h2 className="text-4xl font-black mb-2">{assistantMode === 'note' ? 'note' : 'Patreon'} Ready!</h2>
+              <p className="text-gray-400 font-bold">画像はPCに保存されました。以下の順でコピーしてください。</p>
             </div>
 
             <div className="grid gap-6">
@@ -131,9 +132,9 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
                 <div className="text-left">
                   <span className="text-[10px] font-black text-gray-300 uppercase block mb-1">Step 1</span>
                   <p className="font-black text-xl">タイトルをコピー</p>
-                  <p className="text-xs text-gray-400 mt-1 truncate max-w-sm">{assistantMode === 'note' ? article.title : engData?.title}</p>
+                  <p className="text-xs text-gray-400 mt-1 truncate max-w-[300px]">{assistantMode === 'note' ? article.title : engData?.title}</p>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">
                   <i className="fa-solid fa-copy"></i>
                 </div>
               </button>
@@ -144,19 +145,19 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
               >
                 <div className="text-left">
                   <span className="text-[10px] font-black text-gray-300 uppercase block mb-1">Step 2</span>
-                  <p className="font-black text-xl">本文（英文）をコピー</p>
-                  <p className="text-xs text-gray-400 mt-1">画像挿入指示が含まれています</p>
+                  <p className="font-black text-xl">{assistantMode === 'note' ? '本文' : 'English Body'} をコピー</p>
+                  <p className="text-xs text-gray-400 mt-1">画像挿入タグが自動で調整されています</p>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-gray-100 flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">
                   <i className="fa-solid fa-align-left"></i>
                 </div>
               </button>
 
               <button 
                 onClick={() => window.open(assistantMode === 'note' ? 'https://note.com/notes/new' : 'https://www.patreon.com/posts/new', '_blank')}
-                className="w-full bg-black text-white p-8 rounded-[2rem] flex items-center justify-center gap-4 font-black text-xl mt-4 hover:scale-105 transition-all shadow-2xl"
+                className="w-full bg-black text-white p-8 rounded-[2.5rem] flex items-center justify-center gap-4 font-black text-xl mt-4 hover:scale-[1.02] transition-all shadow-2xl"
               >
-                公式投稿画面を開く <i className="fa-solid fa-external-link"></i>
+                {assistantMode === 'note' ? 'note' : 'Patreon'} を開く <i className="fa-solid fa-external-link"></i>
               </button>
             </div>
           </div>
@@ -164,7 +165,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
       )}
 
       {activeTab === 'preview' ? (
-        <div className="bg-white rounded-[4rem] overflow-hidden shadow-sm border border-gray-100">
+        <div className="bg-white rounded-[4rem] overflow-hidden shadow-sm border border-gray-100 animate-fade-in">
           <div className="aspect-video relative">
             <img src={article.thumbnailUrl} className="w-full h-full object-cover" alt="Main" />
           </div>
@@ -176,7 +177,7 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article, onBack, onDelete
                 if (para.includes('[REAL_IMAGE:')) {
                   const imgId = para.match(/\[REAL_IMAGE:(.*?)\]/)?.[1];
                   const img = article.sectionImages?.find(si => si.id === imgId);
-                  return img ? <div key={i} className="my-20"><img src={img.url} className="rounded-[3rem] w-full shadow-2xl" /></div> : null;
+                  return img ? <div key={i} className="my-20"><img src={img.url} className="rounded-[3rem] w-full shadow-2xl border border-gray-50" /></div> : null;
                 }
                 if (para.includes('[YouTubeリンク:')) {
                   const url = para.match(/\[YouTubeリンク: (.*?)\]/)?.[1];
